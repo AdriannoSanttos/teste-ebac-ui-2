@@ -55,5 +55,6 @@ describe('Funcionalidade Login', () => {
         cy.get(selector.loginButton).click()
         cy.get(selector.errorMessage).should('contain', 'Erro: Nome de usuário é obrigatório.')
         
-    });
+    })
+
 })
