@@ -8,8 +8,7 @@ describe('Funcionalidade Login', () => {
     loginButton: '.woocommerce-form > .button',
     errorMessage: '.woocommerce-error > li'
   }
-    
-
+  
     beforeEach(() => {
         cy.visit('http://lojaebac.ebaconline.art.br/minha-conta/')
         
