@@ -2,29 +2,30 @@ pipeline {
     agent any
 
     environment {
-        CYPRESS_CACHE_FOLDER = "${env.WORKSPACE}\\.cache\\Cypress"
-        REPORTS_FOLDER = "${env.WORKSPACE}\\reports"
+        REPORT_DIR = "${env.WORKSPACE}\\reports"
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
-                git branch: 'main', url: 'https://github.com/AdriannoSanttos/teste-ebac-ui-2.git'
+                git url: 'https://github.com/AdriannoSanttos/teste-ebac-ui-2.git', branch: 'main'
             }
         }
 
         stage('Preparar Ambiente') {
             steps {
-                echo "Instalando dependências..."
+                echo 'Instalando dependências...'
                 bat 'npm ci'
+                echo 'Instalando Mochawesome e dependências de relatório...'
+                bat 'npm install --save-dev mochawesome mochawesome-merge mochawesome-report-generator'
             }
         }
 
         stage('Instalar Cypress (se necessário)') {
             steps {
-                echo "Verificando Cypress..."
+                echo 'Verificando Cypress...'
                 bat """
-                if not exist "%CYPRESS_CACHE_FOLDER%\\13.6.0\\Cypress\\Cypress.exe" (
+                if not exist "${env.WORKSPACE}\\.cache\\Cypress\\13.6.0\\Cypress\\Cypress.exe" (
                     echo Cypress não encontrado, instalando...
                     npx cypress install
                 ) else (
@@ -36,27 +37,22 @@ pipeline {
 
         stage('Executar testes Cypress') {
             steps {
-                echo "Rodando testes..."
+                echo 'Rodando testes...'
                 bat """
                 npx cypress run ^
                 --reporter mochawesome ^
-                --reporter-options reportDir=%REPORTS_FOLDER%,overwrite=false,html=false,json=true
+                --reporter-options reportDir=${env.REPORT_DIR},overwrite=false,html=false,json=true
                 """
-            }
-            post {
-                always {
-                    echo "Testes finalizados."
-                }
             }
         }
 
         stage('Gerar relatório PDF') {
             steps {
-                echo "Gerando relatório PDF..."
+                echo 'Gerando relatório PDF a partir do Mochawesome...'
                 bat """
-                if exist "%REPORTS_FOLDER%\\*.json" (
-                    npx mochawesome-merge "%REPORTS_FOLDER%\\*.json" > "%REPORTS_FOLDER%\\mochawesome.json"
-                    npx marge "%REPORTS_FOLDER%\\mochawesome.json" --reportDir "%REPORTS_FOLDER%" --reportFilename "report" --overwrite
+                if exist "${env.REPORT_DIR}\\*.json" (
+                    npx mochawesome-merge ${env.REPORT_DIR}\\*.json > ${env.REPORT_DIR}\\mochawesome.json
+                    npx marge ${env.REPORT_DIR}\\mochawesome.json --reportDir ${env.REPORT_DIR} --reportFilename report --overwrite
                 ) else (
                     echo Nenhum arquivo JSON gerado, pulando merge.
                 )
@@ -66,14 +62,14 @@ pipeline {
 
         stage('Arquivar artifacts') {
             steps {
-                archiveArtifacts artifacts: 'reports/**/*.*', fingerprint: true
+                archiveArtifacts artifacts: 'reports/**/*.*', allowEmptyArchive: true
             }
         }
     }
 
     post {
         always {
-            echo "Pipeline finalizado. Verifique os reports e vídeos arquivados."
+            echo 'Pipeline finalizado. Verifique os reports e vídeos arquivados.'
         }
     }
 }
