@@ -1,47 +1,28 @@
 pipeline {
     agent any
-
     environment {
-        REPORT_DIR = "${WORKSPACE}/reports"
-        PDF_REPORT = "${WORKSPACE}/reports/report.pdf"
+        REPORT_DIR = "${WORKSPACE}\\reports"
+        VIDEO_DIR  = "${WORKSPACE}\\cypress\\videos"
     }
-
     stages {
-        stage('Checkout SCM') {
-            steps {
-                echo 'Fazendo checkout do repositório...'
-                checkout scm
-            }
-        }
 
-        stage('Preparar Ambiente') {
+        stage('Preparar ambiente') {
             steps {
-                echo 'Instalando dependências...'
-                bat 'npm ci'
-            }
-        }
-
-        stage('Instalar Cypress (se necessário)') {
-            steps {
-                echo 'Verificando Cypress...'
+                echo 'Preparando diretórios...'
                 bat """
-                if not exist "${WORKSPACE}\\.cache\\Cypress\\13.6.0\\Cypress\\Cypress.exe" (
-                    echo Cypress não encontrado, instalando...
-                    npx cypress install
-                ) else (echo Cypress já instalado)
+                if not exist "%REPORT_DIR%" mkdir "%REPORT_DIR%"
                 """
             }
         }
 
         stage('Executar testes Cypress') {
             steps {
-                echo 'Rodando testes...'
-               
+                echo 'Rodando testes Cypress...'
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     bat """
                     npx cypress run ^
                     --reporter mochawesome ^
-                    --reporter-options reportDir=${env.REPORT_DIR},overwrite=false,html=false,json=true
+                    --reporter-options reportDir=%REPORT_DIR%,overwrite=false,html=false,json=true
                     """
                 }
             }
@@ -51,8 +32,14 @@ pipeline {
             steps {
                 echo 'Gerando relatório PDF...'
                 bat """
-                npx mochawesome-merge ${env.REPORT_DIR}\\*.json > ${env.REPORT_DIR}\\merged.json
-                npx marge ${env.REPORT_DIR}\\merged.json --reportDir ${env.REPORT_DIR} --reportTitle "Relatório de Testes" --saveHtml false --saveJson false
+                if exist "%REPORT_DIR%\\*.json" (
+                    echo "Mesclando relatórios JSON..."
+                    npx mochawesome-merge %REPORT_DIR%\\*.json > %REPORT_DIR%\\merged.json
+                    echo "Criando PDF a partir do merged.json..."
+                    npx marge %REPORT_DIR%\\merged.json --reportDir %REPORT_DIR% --reportTitle "Relatório de Testes" --saveHtml false --saveJson false
+                ) else (
+                    echo "Nenhum arquivo JSON de relatório encontrado. Pulando merge."
+                )
                 """
             }
         }
@@ -60,8 +47,8 @@ pipeline {
         stage('Arquivar artifacts') {
             steps {
                 echo 'Arquivando reports e vídeos...'
-                archiveArtifacts artifacts: 'reports/**/*.*', allowEmptyArchive: true
-                archiveArtifacts artifacts: 'cypress/videos/**/*.*', allowEmptyArchive: true
+                archiveArtifacts artifacts: 'reports/**/*', allowEmptyArchive: true
+                archiveArtifacts artifacts: 'cypress/videos/**/*', allowEmptyArchive: true
             }
         }
     }
@@ -69,6 +56,15 @@ pipeline {
     post {
         always {
             echo 'Pipeline finalizado. Verifique os reports e vídeos arquivados.'
+        }
+        success {
+            echo 'Pipeline concluído com sucesso!'
+        }
+        unstable {
+            echo 'Pipeline concluído com testes com falhas.'
+        }
+        failure {
+            echo 'Pipeline finalizado com falha.'
         }
     }
 }
